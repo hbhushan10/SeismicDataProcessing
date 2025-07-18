@@ -3,15 +3,15 @@ which build upon Intel TBB (Multithreading)
 Multithreading parallely distributes tasks among threads which help to reduce execution time as compare with serial program
 This program is featured with multi-key (on two keys that is primary key and secondary key) and order(ascending/descending) for sorting
 
-Following is steps for execution
-Step 1: First give execution permission to compile.sh file by  chmod +x compile.sh
-Step 2: Set compiler name mpiicpc or path 
-(you need to have intel compiler suite or intel oneAPI suite and gnu 8 or above).
-Already set for your reference
-Step 3: compile code with ./compile.sh
-Step 4: you will get seissort exe as output after compile successfully
+   Following is steps for execution
+   Step 1: First give execution permission to compile.sh file by  chmod +x compile.sh
+   Step 2: Set compiler name mpiicpc or path 
+   (you need to have intel compiler suite or intel oneAPI suite and gnu 8 or above).
+   Already set for your reference
+   Step 3: compile code with ./compile.sh
+   Step 4: you will get seissort exe as output after compile successfully
 
-Step 5: run seissort with following command
+   Step 5: run seissort with following command
 
    ->   seissort inputfile.su primary_key order secondary_key order
 
