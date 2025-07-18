@@ -26,34 +26,34 @@ This program is featured with multi-key (on two keys that is primary key and sec
         primary_key and secondary_key will be any from following
 
    ------key  ----  offset
-        TRACL  0
-        TRACR  4
-        FLDR   8
-        TRACF  12
-        IMGP   16
-        CDP    20
-        CDPT   24
-        TRID   28
-        OFFSET 36
-        GELEV  40
-        SDEPTH 48
-        SCALEL 68
-        SCALCO 70
-        SX     72
-        SY     76
-        GX     80
-        GY     84
-        COUNIT 88
-        NS     114
-        DT     116
-        CDPX   180
-        CDPY   184
-        INLINE 188
-        XLINE  192
-        SRCYCDP 200
-        SOFFSET 204
-        SRCXCDP 208
-        SRCYCDP 208 
+        TRACL       0
+        TRACR       4
+        FLDR        8
+        TRACF       12
+        IMGP        16
+        CDP         20
+        CDPT        24
+        TRID        28
+        OFFSET      36
+        GELEV       40
+        SDEPTH      48
+        SCALEL      68
+        SCALCO      70
+        SX          72
+        SY          76
+        GX          80
+        GY          84
+        COUNIT      88
+        NS          114
+        DT          116
+        CDPX        180
+        CDPY        184
+        INLINE      188
+        XLINE       192
+        SRCYCDP     200
+        SOFFSET     204
+        SRCXCDP     208
+        SRCYCDP     208 
  
 
     
