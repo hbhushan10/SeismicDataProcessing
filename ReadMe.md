@@ -2,19 +2,6 @@ This is Seismic data sorting Algorithm.
 which build upon Intel TBB (Multithreading)
 Multithreading parallely distributes tasks among threads which help to reduce execution time as compare with serial program
 This program is featured with multi-key (on two keys that is primary key and secondary key) and order(ascending/descending) for sorting
-example, we can sort seismic data based on FLDR and TRACF and we want FLDR in ascending order, TRACF in descending order.
-Here as FLDR is primary key and TRACF is secondary key
-
-Before sorting seismic data header
-FLDR - 5 5 5 2 2 2 3 3
-TRACF- 5 3 8 1 7 9 8 4
-
-
-After sorting seismic data header (This is output)
-FLDR - 2 2 2 3 3 5 5 5
-TRACF- 9 7 1 8 4 8 5 3 
-
-
 
 Following is steps for execution
 Step 1: First give execution permission to compile.sh file by  chmod +x compile.sh
