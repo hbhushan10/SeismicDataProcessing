@@ -6,27 +6,13 @@ example, we can sort seismic data based on FLDR and TRACF and we want FLDR in as
 Here as FLDR is primary key and TRACF is secondary key
 
 Before sorting seismic data header
-FLDR  TRACF
-5      5
-5      3
-5      8
-2      1
-2      7 
-2      9
-3      8
-3      4
+FLDR - 5 5 5 2 2 2 3 3
+TRACF- 5 3 8 1 7 9 8 4
 
 
 After sorting seismic data header (This is output)
-FLDR TRACF
-2      9
-2      7
-2      1
-3      8
-3      4
-5      8
-5      5
-5      3
+FLDR - 2 2 2 3 3 5 5 5
+TRACF- 9 7 1 8 4 8 5 3 
 
 
 
