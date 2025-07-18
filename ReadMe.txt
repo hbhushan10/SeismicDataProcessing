@@ -17,6 +17,7 @@ This program is featured with multi-key (on two keys that is primary key and sec
 
 
     Note: secondary_key and its order is optional
+         You need input file in su format
 
     Here,
         order =  1 for sorting in ascending order
