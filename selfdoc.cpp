@@ -8,9 +8,9 @@
 
 
 string sdoc =
-R"(SRSORT- Sort seismic data based on maximum two keys(Primary key and Secondary key)
+R"(SEISSORT- Sort seismic data based on maximum two keys(Primary key and Secondary key)
 
-    Syntax --> srsort inputfile primary_key order secondary_key order
+    Syntax --> seissort inputfile primary_key order secondary_key order
     Note: secondary_key and its order is optional   
  
     Here,
