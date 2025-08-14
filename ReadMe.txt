@@ -13,7 +13,7 @@ This program is featured with multi-key (on two keys that is primary key and sec
 
    Step 5: run seissort with following command
 
-   ->   seissort inputfile.su primary_key order secondary_key order
+   ->   seissort inputfile.segy primary_key order secondary_key order
 
 
     Note: secondary_key and its order is optional
