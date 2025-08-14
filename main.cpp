@@ -7,10 +7,16 @@
 #include <mpi.h>
 #include <tbb/tbb.h>
 #include <tbb/task_arena.h>
+
 #include "header_srsort.h"
+
 using namespace std;
 #define HDRBYTE 240
 #include <omp.h>
+
+bhed bh;
+tapebhed tapebh;
+
 
 map<string,int> Keys::hdroff;
 
@@ -26,22 +32,26 @@ void write_chunk(std::ifstream &inp, std::ofstream &otp, std::mutex &file_mutex,
 
 int main(int argc , char **argv)
 {
-
     char head[HDRBYTE];
     string outputfile;
-    short int ns;
+    short int ns, nextended;
     long int ntrace,size, file_size;
     int key1value, key2value, cores;    
     long int i, j;
-     string type1flag, type2flag;
+    string type1flag, type2flag;
     char postfix[256];   
     double t1,t2,t3,t4; 
     long int chunk_traces = 0, chunk_size = 0; 
+    char ebcbuf[EBCBYTES];  /* ebcdic data buffer           */
+    int endian;         /* flag for big=1 or little=0 endian    */
+    long nsegy; //single trace size including header
+    unsigned int databytes; /* bytes from nsfirst   */
+    long ebic_bin_size;
 
 
     MPI_Init(&argc, &argv);
 
-    long int  start_off;
+    long int  start_off = 0;
     int start_index;
 
 
@@ -92,6 +102,11 @@ int main(int argc , char **argv)
 
 
     string inputfile (argv[1]); /* "/home/abhishek/Documents/Bhushan/Marmousi_vel_model_org_Modified-cdpx_Modified-cdpy.sr_resampled_xfact2_zfact2.sr"*/
+
+    /* Check endianess */
+    endian = check_endianess();
+
+
     
     if(argc == 6)
         sprintf(postfix,"Sorted_Primary_%s_Secondary_%s",argv[2],argv[4]);
@@ -102,23 +117,94 @@ int main(int argc , char **argv)
 
     ifstream inp(inputfile,ios::binary);
     ofstream otp(outputfile,ios::binary);
-    
-
-
+   
     if(!inp.is_open())
     {
         cout<<"Unable to open file "<<inputfile<<endl;
         return 0;
     }
+
+    inp.read(ebcbuf,EBCBYTES); //Read EBCDIC header from SEGY FILE
+    //fread((char *) &bh, 1, BNYBYTES, binaryfp); //Read Binary header in bh structure 
+    inp.read((char *)&tapebh,BNYBYTES); //Read Binary header in bh structure
+
+
+    otp.write(ebcbuf,EBCBYTES);
+    otp.write((char *)&tapebh,BNYBYTES);
+
+
+    /* Convert from bytes to ints/shorts */
+    tapebhed_to_bhed(&tapebh, &bh);
+
+    if(endian == 0) //if endianness is little then swap bytes within int/shorts
+    {
+        for (i = 0; i < BHED_NKEYS; ++i) swapbhval(&bh, i);
+    }
+
+    printf("Number of samples in data: %d\n", bh.hns);
+    printf("Format: %d\n", bh.format);
+
+    /* set value of trace weighting factor */
+
+    switch(bh.format)
+    {
+    case 1:
+        printf("Assuming data format - IBM floating point input\n");
+        break;
+    case 2:
+        printf("Assuming data format - 4 byte integer input\n");
+        break;
+    case 3:
+        printf("Assuming data format - 2 byte integer input\n");
+        break;
+    case 5:
+        printf("Assuming data format - IEEE floating point input\n");
+        break;
+    case 8:
+        printf("Assuming data format - 1 byte integer input\n");
+        break;
+    default:
+        printf("ignoring bh.format ... continue\n");
+        printf("format not SEGY standard (1, 2, 3, 5, or 8)\n");
+    }
+
+    /* Compute trace length */
+    ns = bh.hns;
     
+    switch (bh.format) {
+    case 8:
+        nsegy = ns + HDRBYTE;
+        databytes = ns;
+        break;
+    case 3:
+        nsegy = ns * 2 + HDRBYTE;
+        databytes = ns * 2;
+        break;
+    case 1:
+    case 2:
+    case 5:
+    default:
+        nsegy = ns * 4 + HDRBYTE;
+        databytes = ns * 4;
+    }
+
+    cout<<"ns: "<<ns<<" nsegy: "<<nsegy<<" databytes: "<<databytes<<endl;
+
+    nextended = *((short *) (((unsigned char *)&tapebh) + 304));
+    printf("Number of extended text headers = %d\n", nextended);
+
+    for(i=0;i<nextended;i++)
+    {
+        inp.read((char *)&tapebh,BNYBYTES);
+        otp.write((char *)&tapebh,BNYBYTES);
+    }
+
+
     get_filesize(inp,file_size);
-    
-    
-    get_ns(inp,ns);
-    cout<<"Input File                        : "<<inputfile<<endl;
-    cout<<"Number of Samples in Data (ns)    : "<<ns<<endl; 
-    
-    get_ntrace(file_size,ns,ntrace);    
+
+    ntrace = (file_size - (EBCBYTES + BNYBYTES + (nextended * EBCBYTES)))/nsegy;
+    ebic_bin_size = (EBCBYTES + BNYBYTES + (nextended * EBCBYTES));
+
     cout<<"Number of Traces in Data (ntrace) : "<<ntrace<<endl; 
    
     const size_t num_cores = tbb::this_task_arena::max_concurrency();
@@ -174,7 +260,7 @@ int main(int argc , char **argv)
     {
         for(std::size_t i = 0 ;i<num_cores;i++)
         {
-            group.run([i,start_off,size,&inputfile, ns,chunk_traces,chunk_size,file_size,&keys,off1](){
+            group.run([i,start_off,&inputfile, ns,chunk_traces,chunk_size,file_size,&keys,off1, ebic_bin_size](){
                 char head[HDRBYTE];
 
                 int thread_index = tbb::this_task_arena::current_thread_index();
@@ -182,8 +268,7 @@ int main(int argc , char **argv)
                 float *data =new float[ns];
                 int key1;
                 long int start_index = i * chunk_traces;
-                long int start_off = i * chunk_size;
-                long int size =   std::min(chunk_size, (file_size - start_off));
+                long int start_off = i * chunk_size + ebic_bin_size;
 
                 std::ifstream thread_file(inputfile, std::ios::binary);
                 thread_file.seekg(start_off, std::ios::beg);
@@ -194,6 +279,8 @@ int main(int argc , char **argv)
                 {
                     thread_file.read((char*) data,ns*sizeof(float));
                     key1 = *((int*)(head + off1));
+                    swap_int_4((int*) &key1);
+                    //cout<<"key1  :"<<key1<<endl;
                     keys->addkeys(k,key1,0);
                     k++;
                 }
@@ -210,7 +297,7 @@ int main(int argc , char **argv)
     {
         for(std::size_t i = 0 ;i<num_cores;i++)
         {
-            group.run([i,start_off,size,&inputfile, ns,chunk_traces,chunk_size,file_size,&keys,off1,off2](){
+            group.run([i,start_off,&inputfile, ns,chunk_traces,chunk_size,file_size,&keys,off1,off2, ebic_bin_size](){
                 char head[HDRBYTE];
 
                 int thread_index = tbb::this_task_arena::current_thread_index();
@@ -218,8 +305,7 @@ int main(int argc , char **argv)
                 float *data =new float[ns];
                 int key1, key2;
                 long int start_index = i * chunk_traces;
-                long int start_off = i * chunk_size;
-                long int size =   std::min(chunk_size, (file_size - start_off));
+                long int start_off = i * chunk_size +  ebic_bin_size;
 
                 std::ifstream thread_file(inputfile, std::ios::binary);
                 thread_file.seekg(start_off, std::ios::beg);
@@ -231,6 +317,9 @@ int main(int argc , char **argv)
                     thread_file.read((char*) data,ns*sizeof(float));
                     key1 = *((int*)(head + off1));
                     key2 = *((int*)(head + off2));
+                    swap_int_4((int*) &key1);
+                    swap_int_4((int*) &key2);
+                    //cout<<"key1  :"<<key1<<endl; 
                     keys->addkeys(k,key1,key2);
                     k++;
                 }
@@ -258,15 +347,14 @@ int main(int argc , char **argv)
 
     cout<<"Parallel Sorting COmpleted"<<endl;
 
-    inp.seekg(0,ios::beg); 
+    //inp.seekg(0,ios::beg); 
+    inp.seekg(ebic_bin_size,ios::beg);
 
-
-    cout<<"ns : "<<ns<<endl;
 
    for(std::size_t i = 0 ;i<num_cores;i++)
    {
 
-        group.run([i,start_off,size,&inputfile, ns,chunk_traces,chunk_size,file_size,&keys,off1, indexvector,ntrace, &inp, &otp](){
+        group.run([i,size,&inputfile, ns,chunk_traces,chunk_size,file_size,&keys,off1, indexvector,ntrace, &inp, &otp,ebic_bin_size](){
             char head[HDRBYTE];
 
             int thread_index = tbb::this_task_arena::current_thread_index();
@@ -278,7 +366,7 @@ int main(int argc , char **argv)
 
 
             std::ifstream thread_file(inputfile, std::ios::binary);
-            thread_file.seekg(start_off, std::ios::beg);
+            //thread_file.seekg(start_off, std::ios::beg);
 
 
             long int k = start_index;
@@ -287,13 +375,13 @@ int main(int argc , char **argv)
             for(j=start_index;j<end_index;j++)
             {
                 index = indexvector[j];
-                thread_file.seekg(((HDRBYTE+(ns*sizeof(float)))*index),ios::beg);
+                thread_file.seekg(((HDRBYTE+(ns*sizeof(float)))*index)+ebic_bin_size,ios::beg);
                 thread_file.read(head,HDRBYTE);
                 thread_file.read((char *)d,ns*sizeof(float));
 
                 tbb::spin_mutex::scoped_lock lock(mtx);
                 {
-                    otp.seekp(((HDRBYTE+(ns*sizeof(float)))*j),ios::beg);
+                    otp.seekp(((HDRBYTE+(ns*sizeof(float)))*j)+ebic_bin_size,ios::beg);
                     otp.write(head,HDRBYTE);
                     otp.write((char*)d,ns*sizeof(float));                
                 } 

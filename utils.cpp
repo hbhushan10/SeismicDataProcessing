@@ -6,6 +6,7 @@
 #include <libgen.h>
 #include <mpi.h>
 #include "header_srsort.h"
+
 #include <tbb/tbb.h>
 #include <tbb/parallel_sort.h>
 using namespace std;
@@ -42,7 +43,7 @@ void set_outputfile_name(string file, string &outfile, char *postfix)
 
     strcat(ofile, "_");
     strcat(ofile, postfix);
-    strcat(ofile, ".sr");
+    strcat(ofile, ".segy");
     outfile.assign(ofile);
 }
 
@@ -124,7 +125,6 @@ vector<int> Keys::Sort(Keys *arr, int n, int order1, int order2)
     {
         IntArrays *arrays = new IntArrays(arr->index, arr->vect1, arr->vect2,n);
     //    arrays.printArrays();
-    cout<<__LINE__<<endl;
     arrays->sortBasedOnPrimaryAndSecondary(order1,order2);
     
     vector<int> loc = std::move(arrays->indexArray);
@@ -251,4 +251,89 @@ void IntArrays::printArrays() const {
         }
         std::cout << std::endl;
 */
+}
+
+
+/* Function to check the endianess of the system */
+int check_endianess(void)
+{
+    int endian;
+    union
+    {
+        short s;
+        char c[2];
+    } testend;
+
+    testend.s = 1;
+    endian = (testend.c[0] == '\0') ? 1 : 0;
+
+    return endian;
+}
+
+
+void tapebhed_to_bhed(const tapebhed *tapebhptr, bhed *bhptr)
+{
+    register int i;
+    Value val;
+    /* convert binary header, field by field */
+    for (i = 0; i < BHED_NKEYS; ++i) {
+        gettapebhval(tapebhptr, i, &val);
+        putbhval(bhptr, i, &val);
+    }
+}
+
+void gettapebhval(const tapebhed *tr, int index, Value *valp)
+{
+    char *tp = (char*) tr;
+
+    switch(*(tapebhdr[index].type)) {
+    case 'U': valp->h = (short) *((short*) (tp + tapebhdr[index].offs));
+    break;
+    case 'P': valp->i = (int) *((int*) (tp + tapebhdr[index].offs));
+    break;
+    default: printf("%s: %s: mysterious data type", __FILE__, __LINE__);
+    break;
+    }
+
+}
+
+void putbhval(bhed *bh, int index, Value *valp)
+{
+    char *bhp = (char*) bh;
+
+    switch(*(bhdr[index].type)) {
+    case 'h': *((short*) (bhp + bhdr[index].offs)) = valp->h; break;
+    case 'i': *((int*)   (bhp + bhdr[index].offs)) = valp->i; break;
+    default: printf("%s: %s: mysterious data type", __FILE__, __LINE__);
+    break;
+    }
+
+}
+void swapbhval(bhed *bh, int index)
+{
+    register char *bhp= (char *) bh;
+
+        switch(*(bhdr[index].type)) {
+        case 'h': swap_short_2((short*)(bhp + bhdr[index].offs)); break;
+        case 'i': swap_int_4((int*)(bhp + bhdr[index].offs)); break;
+        default: printf("%s: %s: unsupported data type", __FILE__, __LINE__);
+    break;
+        }
+}
+
+void swap_short_2(short *tni2)
+/**************************************************************************
+ *  * swap_short_2        swap a short integer
+ *   * ***************************************************************************/
+{
+ *tni2=(((*tni2>>8)&0xff) | ((*tni2&0xff)<<8));
+}
+
+void swap_int_4(int *tni4)
+/**************************************************************************
+ *  * swap_int_4      swap a 4 byte integer
+ *   * ***************************************************************************/
+{
+ *tni4=(((*tni4>>24)&0xff) | ((*tni4&0xff)<<24) |
+        ((*tni4>>8)&0xff00) | ((*tni4&0xff00)<<8));
 }

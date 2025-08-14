@@ -5,11 +5,26 @@
 #include<vector>
 using namespace std;
 
+
+#include "bin_hdr.h"
+#include "tape_bin_hdr.h"
+
+#define EBCBYTES 3200
+#define BNYBYTES 400
+#define BHED_NKEYS     27
+
 void selfdoc();
 void set_outputfile_name(string file, string &ofile, char *postfix);
 void get_filesize(ifstream& inp, long int& size);
 void get_ns(ifstream& inp, short int& ns);
 void get_ntrace(long int size, int ns, long int& ntrace);
+int check_endianess(void);
+void tapebhed_to_bhed(const tapebhed *tapebhptr, bhed *bhptr);
+void gettapebhval(const tapebhed *tr, int index, Value *valp);
+void putbhval(bhed *bh, int index, Value *valp);
+void swapbhval(bhed *bh, int index);
+void swap_short_2(short *tni2);
+void swap_int_4(int *tni4);
 
 class IntArrays {
 public:
