@@ -9,6 +9,8 @@
 #include "utils.h"
 #include "header_macros.h"
 
+//V1.0
+
 //Default constructor
 	Stacking::Stacking():imagefile(""),velfile(""){
 		vel_start_xline = 0;
