@@ -79,12 +79,18 @@ void Utils::get_ntrace(long int size, short ns, long int& ntrace)
     ntrace = size / (HDRBYTES + (ns*sizeof(float)));
 }
 
-void Utils::get_min_max_in_xline_from_data(ifstream &inpd,long ntrace,int &min_in, int &min_x, int &max_in, int &max_x){
-	int  i, xln, inln;
+void Utils::get_min_max_in_xline_from_data(ifstream &inpd,long ntrace,int &min_in, int &min_x, int &max_in, int &max_x,
+	int &max_left, int &max_right, int &max_top, int &max_bottom, int Centertype){
+
+	int  xln, inln,srcx,srcy;
 	char head[HDRBYTES];
 	short ns, dt;
 	Utils::get_ns(inpd,ns);
 	Utils::get_dt(inpd,dt);
+	long i;
+	int dist;
+
+
 
 	float *trace = new float[ns];
 
@@ -93,12 +99,29 @@ void Utils::get_min_max_in_xline_from_data(ifstream &inpd,long ntrace,int &min_i
 	max_in = INT_MIN;
 	max_x = INT_MIN;
 
+    int srcxcdp, srcycdp;
+    if (Centertype == SHOTCENTER) {
+        srcxcdp = SRCXCDP;
+        srcycdp = SRCYCDP;
+        cout << srcxcdp << "NORMAL" << srcycdp << endl;
+    } else {
+        srcxcdp = FOLDX;
+        srcycdp = FOLDY;
+        cout << srcxcdp << "FOLD" << srcycdp << endl;
+    }
+
+
+	max_left = max_right = max_top = max_bottom = 0;
+
+
 	for(i=0;i<ntrace;i++)
 	    {
 			inpd.read(head, HDRBYTES);
 			inpd.read((char*)trace, sizeof(float)* ns);
-	        xln = *((int*)  (head + XLINE));
+	        xln  = *((int*)  (head + XLINE));
 	        inln = *((int*)  (head + INLINE));
+	        srcx = *((int*)  (head + srcxcdp));
+	        srcy = *((int*)  (head + srcycdp));
 
 	        if(xln < min_x)
 	            min_x = xln;
@@ -110,11 +133,23 @@ void Utils::get_min_max_in_xline_from_data(ifstream &inpd,long ntrace,int &min_i
 	        if(inln > max_in)
 	            max_in = inln;
 
+	        dist = xln - srcx;
+	        if(dist>1 && dist>max_right)
+	        	max_right = dist;
+	        else if(dist<1 && abs(dist)>max_left)
+	        	max_left = abs(dist);
+
+	        dist = inln - srcy;
+	        if(dist>1 && dist>max_top)
+	        	max_top = dist;
+	        else if(dist<1 && abs(dist)>max_bottom)
+	        	max_bottom = abs(dist);
 	    }
 
 	inpd.clear();
 	inpd.seekg(0,std::ios::beg);
 
+	cout<<"max_left : "<<max_left<<",  max_right : "<<max_right<<" max_top : "<<max_top<<" max_bottom : "<<max_bottom<<endl;
 
 
 }
@@ -130,6 +165,11 @@ void Utils::set_outputfile_name(string imagefile, string &ofile, Stacking *stk, 
 	ofile.append("Inlineoff_");
 	ofile.append(to_string(int(stk->getImgStackedxline()*stk->getDy())));
 	ofile.append("Xlineoff");
+
+	if(stk->getCentertype()==SHOTCENTER)
+		ofile.append("_SHOTC");
+	else if(stk->getCentertype()==FOLDCENTER)
+		ofile.append("_FOLDC");
 	if(stk->getStackingtype() == MEAN)
 		ofile.append("_MEAN");
 	if(stk->getStackingtype() == COSINE)
@@ -149,8 +189,8 @@ void Utils::selfdoc(void)
 
 
                 Syntax --> srmig3dstack  velocity_file_in_sr_format shot_imagegather_file_in_sr_format stack_offset_along_inline_in_meters stack_offset_along_xline_in_meters xlinespacing inlinespacing Center Type_stacking
-						    Center:  1- Shot Centric, 2- Fold Centric 
-							Type of Stacking: 1-  Normal,  2- Mean, 3- Cosine Tapering 4-Weighted(OFFSET)
+						    Center:  1- Shot Centric stacking, 2- Fold Centric stacking 
+							Type of Stacking: 1-  Normal,  2- Mean, 3- Cosine Tapering 
 
     "**************** end self doc **************************************)";
 
@@ -159,6 +199,34 @@ void Utils::selfdoc(void)
     fprintf(fp, "%s", sdoc.c_str());
     pclose(fp);
 }
+//function extracting a trace position wrt to stencil and hold index value in dist_s_x and dist_s_y(referece variables)
+void Utils::getStencilIndex(int xln,int inln,int srcx,int srcy,int stencil_sx_index,int stencil_sy_index, int &dist_stencil_x,int &dist_stencil_y){
+
+	int distx = xln -srcx;  //get relative position in x
+	int disty = inln - srcy; //get relative position in y
+
+
+	if (distx < 1) {  //if distx is negative, mean xln is left of srcx
+		dist_stencil_x = stencil_sx_index - abs(distx);
+	} else if (distx > 1) {//if distx is positive, mean xln is right of srcx
+		dist_stencil_x = stencil_sx_index + distx;
+	}
+	else{
+		dist_stencil_x = stencil_sx_index;
+	}
+
+	if (disty < 1) {
+		dist_stencil_y = stencil_sy_index - abs(disty);
+	} else if (distx > 1) {
+		dist_stencil_y = stencil_sy_index + disty;
+	}
+	else{
+		dist_stencil_y = stencil_sy_index;
+	}
+
+
+}
+
 
 
 

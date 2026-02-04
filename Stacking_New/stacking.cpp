@@ -5,11 +5,11 @@
  *      Author: abhishek
  */
 
+//V2.4
+
 #include "stacking.h"
 #include "utils.h"
 #include "header_macros.h"
-
-//V1.0
 
 //Default constructor
 	Stacking::Stacking():imagefile(""),velfile(""){
@@ -119,8 +119,12 @@ void Stacking::loadvelheaders(std::ifstream& inpv){
            memcpy(&heads[siz*HDRBYTES], head, HDRBYTES);
         }
     }
-	cout<<__LINE__<<endl;
 	inpv.close();
+    delete []data;
+    data = NULL;
+
+//    delete []heads;
+ //   heads = NULL;
 
 }
 
@@ -148,6 +152,8 @@ void Stacking::StackingImage() {
 	float *trace, **stackeddata, **stackedbdata;
 	char head[HDRBYTES];
 	int inln, xln, srcx, srcy, cdpx, cdpy, sx, k;
+	int max_left,max_right,max_top,max_bottom;
+
 
 
 	ifstream inpd(getImagefile().c_str(),ios::in | ios::binary);
@@ -161,7 +167,8 @@ void Stacking::StackingImage() {
 	Utils::get_dt(inpd,data_dt);
 	Utils::get_filesize(inpd, fsize);
 	Utils::get_ntrace(fsize, data_ns, data_ntrace);
-	Utils::get_min_max_in_xline_from_data(inpd, data_ntrace, startinline_data, startxline_data, endinline_data, endxline_data);
+	Utils::get_min_max_in_xline_from_data(inpd, data_ntrace, startinline_data, startxline_data, endinline_data, endxline_data,max_left, max_right, max_top, max_bottom,getCentertype());
+
 
 
 
@@ -181,18 +188,23 @@ void Stacking::StackingImage() {
 	totalinline = endinline_data - startinline_data + 1;
 	totalxline = endxline_data - startxline_data +  1;
 
-
+	cout<<"endxline_data  : "<<endxline_data<<" "<<startxline_data<<endl;
 
 	cout<<"Total Inline Points: "<<totalinline<<", Total xline Points : "<<totalxline<<endl;
 
+	if(totalinline < 0 || totalxline < 0)
+	{
+		cout<<"Error!!! totalinline or totalxline can not be zero"<<endl;
+		exit(0);
+	}
 
 	stackeddata =  new float*[totalinline * totalxline];
 	stackedbdata =  new float*[totalinline * totalxline];
 
 	for(int i=0 ; i < (totalinline * totalxline) ; i++)
 	{
-	    stackeddata[i] = new float[data_ns];
-	    stackedbdata[i] = new float[data_ns];
+	    stackeddata[i] = new float[data_ns]();
+	    stackedbdata[i] = new float[data_ns]();
 	}
 
 	for(int i = 0; i < (totalinline * totalxline); i++)
@@ -200,8 +212,11 @@ void Stacking::StackingImage() {
 	   memset(stackeddata[i],0x00,sizeof(float)*data_ns);
 	   memset(stackedbdata[i],0x00,sizeof(float)*data_ns);
 	}
-	cout<<totalinline<<" "<<totalxline<<" on line "<<__LINE__<<endl;
-	cout<<img_stackedinline<<" "<<img_stackedinline<<endl;
+	//cout<<totalinline<<" "<<totalxline<<" on line "<<__LINE__<<endl;
+	//cout<<img_stackedinline<<" "<<img_stackedinline<<endl;
+
+
+    
 
 	if(getStackingtype() == NORMAL || getStackingtype() == MEAN)
 	{
@@ -215,16 +230,31 @@ void Stacking::StackingImage() {
 	}
 	else if(getStackingtype() == COSINE)
 	{
-		Cosine_Stacking(inpd,stackeddata, stackedbdata, data_ntrace,data_ns,startxline_data, startinline_data, endxline_data, endinline_data,totalxline,  totalinline, data_dt);
+        cout<<" Calling CoSINE "<<endl;
+		Cosine_Stacking(inpd,stackeddata, stackedbdata, data_ntrace,data_ns,startxline_data, startinline_data, endxline_data, endinline_data,totalxline,  totalinline, data_dt, max_left, max_right, max_top, max_bottom);
 	}
+    
 
-
-
-	 inpd.close();
+	inpd.close();
 
     writeStacking(stackeddata, stackedbdata, totalinline,totalxline,startinline_data, startxline_data, endinline_data,endxline_data, data_ns, data_dt);
 
+    for(int i=0;i<(totalinline * totalxline);i++)
+    {
+        delete[] stackeddata[i];
+        delete[] stackedbdata[i];
+    }
+
+
+    delete[] stackeddata;
+    stackeddata = NULL;
+
+    delete[] stackedbdata;
+    stackedbdata = NULL;
+
 }
+
+
 
 void Stacking::writeStacking(float **stackeddata, float **stackedbdata, int totalinline, int totalxline, int startinline_data, int startxline_data, int endinline_data, int endxline_data, short data_ns, short data_dt){
 	string ofile, obfile;
@@ -287,20 +317,26 @@ void Stacking::writeStacking(float **stackeddata, float **stackedbdata, int tota
 		    outsr.close();
 		    outbin.close();
 
-		       delete []stackeddata;
+
+            stackeddata = NULL;
+            stackedbdata = NULL;
+
+/*		       delete []stackeddata;
 		       delete []stackedbdata;
 		       stackeddata = NULL;
-		       stackedbdata = NULL;
+		       stackedbdata = NULL;  */
 
 }
 
 void Stacking::do_mean_stacked_data(float **stackeddata, float **stackedbdata,int n,short data_ns){
 	for (int i=0;i<n;i++){
 		for(int j=0;j<data_ns;j++){
-			if(stackedbdata[j][j]!=0)
-			stackeddata[i][j] = stackeddata[i][j]/stackedbdata[j][j];
+			if(stackedbdata[i][j]!=0)
+			stackeddata[i][j] = stackeddata[i][j] /stackedbdata[i][j] ;
 		}
 	}
+    stackeddata = NULL;
+    stackedbdata = NULL;
 }
 
 void Stacking::Normal_Stacking(ifstream &inpd,float **stackeddata, float **stackedbdata, int data_ntrace, short data_ns, int startxline_data, int startinline_data, int endxline_data, int endinline_data, int totalxline, int totalinline){
@@ -308,6 +344,20 @@ void Stacking::Normal_Stacking(ifstream &inpd,float **stackeddata, float **stack
 	int inln, xln, srcx, srcy, cdpx, cdpy, sx, k;
 	char head[HDRBYTES];
 	float *trace = new float[data_ns];
+	int srcxcdp,srcycdp;
+	if(getCentertype()==SHOTCENTER){
+		srcxcdp  = SRCXCDP;
+		srcycdp  = SRCYCDP;
+		cout<<srcxcdp<<"NORMAL"<<srcycdp<<endl;
+	}
+	else{
+		srcxcdp  = FOLDX;
+		srcycdp  = FOLDY;
+		cout<<srcxcdp<<"FOLD"<<srcycdp<<endl;
+	}
+
+
+
 	for(int i=0;i<data_ntrace;i++)
 		{
 
@@ -317,15 +367,15 @@ void Stacking::Normal_Stacking(ifstream &inpd,float **stackeddata, float **stack
 		    sx    = *((int*)  (head + SX));
 		    xln   = *((int*)  (head + XLINE));
 		    inln  = *((int*)  (head + INLINE));
-		    srcx = *((int*)  (head + SRCXCDP));
-		    srcy = *((int*)  (head + SRCYCDP));
+
+		    srcx = *((int*)  (head + srcxcdp));
+		    srcy = *((int*)  (head + srcycdp));
+
+
 
 
 		    if( (abs(srcx - xln) <= img_stackedinline) && (xln >=startxline_data) && (xln <= endxline_data) &&  (abs(srcy - inln) <= img_stackedxline) &&(inln >=startinline_data) && (inln <= endinline_data) && (sx != 0))
 		    {
-		    	if(inln == 1717)
-		    				        	cout<<xln<<endl;
-
 		        xln = xln - startxline_data;
 		        inln = inln - startinline_data;
 		        k = 1;
@@ -353,71 +403,156 @@ void Stacking::Normal_Stacking(ifstream &inpd,float **stackeddata, float **stack
 		    }
 
 	   }
+    
+    stackeddata = NULL;
+    stackedbdata = NULL;
 }
 
-void Stacking::Cosine_Stacking(ifstream &inpd,float **stackeddata, float **stackedbdata, int data_ntrace, short data_ns, int startxline_data, int startinline_data, int endxline_data, int endinline_data, int totalxline,  int totalinline, short data_dt){
+void Stacking::Cosine_Stacking(ifstream &inpd,float **stackeddata, float **stackedbdata, int data_ntrace, short data_ns, int startxline_data, int startinline_data, int endxline_data, int endinline_data, int totalxline,  int totalinline, short data_dt
+		, int max_left,int max_right,int max_top, int max_bottom){
+
 	int inln, xln, srcx, srcy, cdpx, cdpy, sx, k;
 	float xln_dist, inl_dist,xln_inl_digonal_dist;
-		char head[HDRBYTES];
-		float *trace = new float[data_ns];
-		float cosineAngle;
-		float dx = getDx();
-		float dy = getDy();
-		float dz = data_dt/1000;
-		for(int i=0;i<data_ntrace;i++)
+	char head[HDRBYTES];
+	float *trace = new float[data_ns];
+	float cosineAngle;
+	float dx = getDx();
+	float dy = getDy();
+	float dz = data_dt/1000;
+	long size,ysize,xsize,zsize;
+	int dist_s_x,dist_s_y;
+
+	size = 1;
+	size = size * (max_left + max_right + 1) *  (max_top + max_bottom + 1) * data_ns;
+	ysize = (max_top + max_bottom + 1);
+	xsize = (max_left + max_right + 1);
+	zsize = data_ns;
+
+	float *stencil=new float[size];
+
+	for(int y=0;y<ysize;y++){
+		for(int x=0;x<xsize;x++){
+			xln_dist = abs((max_left - x)*dx);
+			inl_dist = abs((max_bottom - y)*dy);
+			xln_inl_digonal_dist = sqrtf((xln_dist*xln_dist) + (inl_dist * inl_dist));
+			for(int z=0;z<zsize;z++){
+				cosineAngle = getDepthAngle(z,dx, dy, dz, xln_dist, inl_dist,xln_inl_digonal_dist);
+				stencil[z + x*zsize + y*zsize*xsize]=cosf(cosineAngle);
+			}
+		}
+	}
+
+	ofstream outf("out.bin",ios::binary);
+	outf.write((char *)stencil, size*sizeof(float));
+
+	inpd.read(head, HDRBYTES);
+
+	int srcxcdp, srcycdp;
+	if (getCentertype() == SHOTCENTER) {
+		srcxcdp = SRCXCDP;
+		srcycdp = SRCYCDP;
+	} else {
+		srcxcdp = FOLDX;
+		srcycdp = FOLDY;
+	}
+
+
+
+	/*if(srcx == 0 || srcy == 0)
+	{
+		cout<<"Error!! srcx  or srcy of trace is zero"<<endl;
+		exit(0);
+	} */
+	inpd.seekg(0,std::ios::beg);
+
+
+	for(int i=0;i<data_ntrace;i++)
+	{
+		inpd.read(head, HDRBYTES);
+		inpd.read((char *)trace, sizeof(float) *data_ns);
+		sx    = *((int*)  (head + SX));
+		xln   = *((int*)  (head + XLINE));
+		inln  = *((int*)  (head + INLINE));
+		srcx  = *((int*)  (head + srcxcdp));
+		srcy  = *((int*)  (head + srcycdp));
+
+		if( (abs(srcx - xln) <= img_stackedinline) && (xln >=startxline_data) && (xln <= endxline_data) &&  (abs(srcy - inln) <= img_stackedxline) &&(inln >=startinline_data) && (inln <= endinline_data) && (sx != 0))
+		{
+			//xln, inln, srcx, srcy are parameter extracted from trace of image gather
+			//max_left and max_bottom are index of source position in stencil
+			//dist_s_x,dist_s_y are reference variable for getting position of trace wrt stencil
+			//function extracting dist_s_x,dist_s_y
+			Utils::getStencilIndex(xln,inln,srcx,srcy,max_left,max_bottom, dist_s_x,dist_s_y);
+			//cout<<"xln  : "<<xln<<" inln : "<<inln<<" ";
+			xln = xln - startxline_data;
+			inln = inln - startinline_data;
+			k = 1;
+			k = k * ((inln * totalxline) + xln);
+			//cout<<"totalxline : "<<totalxline<<endl;
+
+			//cout<<"xln : "<<xln<<" inln : "<<inln<<" k : "<<k<<endl;
+			for(int j=0;j<data_ns;j++)
 			{
+				//cout<<stencil[j+dist_s_x*zsize+dist_s_y*zsize*xsize]<<endl;
+			    stackeddata[k][j] = stackeddata[k][j] + (trace[j]*stencil[j+dist_s_x*zsize+dist_s_y*zsize*xsize]);
+			    stackedbdata[k][j]++;
+			}
+		}
+	}
 
-			    inpd.read(head, HDRBYTES);
-			    inpd.read((char *)trace, sizeof(float) *data_ns);
+/*
+	for(int i=0;i<data_ntrace;i++)
+	{
 
-			    sx    = *((int*)  (head + SX));
-			    xln   = *((int*)  (head + XLINE));
-			    inln  = *((int*)  (head + INLINE));
-			    srcx  = *((int*)  (head + SRCXCDP));
-			    srcy  = *((int*)  (head + SRCYCDP));
+	    inpd.read(head, HDRBYTES);
+	    inpd.read((char *)trace, sizeof(float) *data_ns);
+	    sx    = *((int*)  (head + SX));
+	    xln   = *((int*)  (head + XLINE));
+	    inln  = *((int*)  (head + INLINE));
+	    srcx  = *((int*)  (head + SRCXCDP));
+	    srcy  = *((int*)  (head + SRCYCDP));
 
 
-			    if( (abs(srcx - xln) <= img_stackedinline) && (xln >=startxline_data) && (xln <= endxline_data) &&  (abs(srcy - inln) <= img_stackedxline) &&(inln >=startinline_data) && (inln <= endinline_data) && (sx != 0))
-			    {
+	    if( (abs(srcx - xln) <= img_stackedinline) && (xln >=startxline_data) && (xln <= endxline_data) &&  (abs(srcy - inln) <= img_stackedxline) &&(inln >=startinline_data) && (inln <= endinline_data) && (sx != 0))
+	    {
 
 
-			        xln_dist = abs((srcx - xln)*dx);
-			        inl_dist = abs((srcy - inln)*dy);
+	        xln_dist = abs((srcx - xln)*dx);
+	        inl_dist = abs((srcy - inln)*dy);
+	        xln_inl_digonal_dist = sqrtf((xln_dist*xln_dist) + (inl_dist * inl_dist));
 
-			        xln_inl_digonal_dist = sqrtf((xln_dist*xln_dist) + (inl_dist * inl_dist));
 
-			        if(inln == 1717)
-			        	cout<<xln<<endl;
 
-			        xln = xln - startxline_data;
-			        inln = inln - startinline_data;
-			        k = 1;
-			        k = k * ((inln * totalxline) + xln);
+	        xln = xln - startxline_data;
+	        inln = inln - startinline_data;
+	        k = 1;
+	        k = k * ((inln * totalxline) + xln);
 
-			        for(int j=0;j<data_ns;j++)
-			        {
-			        	cosineAngle = getDepthAngle(j,dx, dy, dz, xln_dist, inl_dist,xln_inl_digonal_dist);
-
-			            stackeddata[k][j] = stackeddata[k][j] + (trace[j]*cosf(cosineAngle));
-			            stackedbdata[k][j]++;
-			        }
+	        for(int j=0;j<data_ns;j++)
+	        {
+	        	cosineAngle = getDepthAngle(j,dx, dy, dz, xln_dist, inl_dist,xln_inl_digonal_dist);
+	            stackeddata[k][j] = stackeddata[k][j] + (trace[j]*cosf(cosineAngle));
+	            stackedbdata[k][j]++;
+	        }
 			        //exit(0);
-			     }
-			     else if(sx == 0)
-			     {
-			        xln = xln - startxline_data;
-			        inln = inln - startinline_data;
-			        k = 1;
-			        k = k * ((inln * totalxline) + xln);
+	     }
+	     else if(sx == 0)
+	     {
+	        xln = xln - startxline_data;
+	        inln = inln - startinline_data;
+	        k = 1;
+	        k = k * ((inln * totalxline) + xln);
 
-			       for(int j=0;j<data_ns;j++)
-			       {
-			           stackeddata[k][j] = stackeddata[k][j] + trace[j];
-			           stackedbdata[k][j]++;
-			        }
-			    }
+	         for(int j=0;j<data_ns;j++)
+		     {
+		         stackeddata[k][j] = stackeddata[k][j] + trace[j];
+		         stackedbdata[k][j]++;
+		     }
+		 }
 
-		   }
+	}*/
+    stackeddata = NULL;
+    stackedbdata = NULL;
 }
 inline float Stacking::getDepthAngle(int indx, float dx, float dy, float dz, float xln_dist, float inl_dist, float xln_inl_digonal_dist){
 	float depth_dist,  angl_rad, angl_deg, xln_inl_digonal_dist_depth;
