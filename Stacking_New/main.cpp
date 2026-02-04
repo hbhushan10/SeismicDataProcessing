@@ -1,7 +1,7 @@
 #include "stacking.h"
 #include "utils.h"
 
-//v1.0
+//v2.0
 char* Utils::heads = nullptr;
 int main(int argc, char **argv)
 {
