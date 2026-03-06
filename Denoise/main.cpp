@@ -8,7 +8,7 @@ using namespace std;
 Denoise* Denoise::instance = nullptr;
 int main(int argc, char **argv)
 {
-	//V1.4
+	//V1.5
 	if (argc != 4) {
 		Utils::selfdoc();
 		exit(0);
